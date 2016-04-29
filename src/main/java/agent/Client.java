@@ -21,7 +21,8 @@ public class Client {
     public final SingleVideoDisplayWindow displayWindow;
     public final Webcam webcam;
     protected final static Logger logger = LoggerFactory.getLogger(Client.class);
-
+    public static int streamerPort = 8876;
+    public static int connectionPort = 8875;
     public Client() {
         dimension = new Dimension(1024,576);
         Webcam.setAutoOpenMode(true);
@@ -37,10 +38,9 @@ public class Client {
         c.displayWindow.setVisible(true);
         logger.info("setup dimension: {}",c.dimension);
         //запуск сервера передачи сообщений
-        Streamer streamer = new Streamer(c.webcam,9876);
+        Streamer streamer = new Streamer(c.webcam, Integer.parseInt(args[0]));
         streamer.start();
         //
-
         BufferedImage img = null;
         try {
             img = ImageIO.read(new File("test.png"));

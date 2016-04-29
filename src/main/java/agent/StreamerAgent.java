@@ -1,12 +1,13 @@
 package agent;
 
 import com.github.sarxos.webcam.Webcam;
-import handler.StreamServerListener;
+import handler.StreamerListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.awt.*;
+import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.*;
 import java.util.concurrent.*;
@@ -33,9 +34,11 @@ public class StreamerAgent implements Runnable{
     public StreamerAgent(Webcam webcam, InetSocketAddress streamAddress) {
         this.webcam = webcam;
         this.streamAddress = streamAddress;
+        this.timeWorker = new ScheduledThreadPoolExecutor(1);
+        this.sendWorker = Executors.newSingleThreadExecutor();
         this.isWaiting = true; //ожидание входящих подключений
         try {
-            socket = new DatagramSocket(4445);
+            socket = new DatagramSocket(Client.streamerPort);
         } catch (SocketException e) {
             e.printStackTrace();
         }
@@ -65,7 +68,7 @@ public class StreamerAgent implements Runnable{
                             isWaiting = false;
                             logger.info("user connected");
                             //устанавливаем соединение с клиентом
-                            (new StreamServerListenerIMPL()).onClientConnectedIn();
+                            (new StreamerListenerIMPL()).onClientConnectedIn();
                         } else {
                             // send the response to the client at "address" and "port"
                             InetAddress address = packet.getAddress();
@@ -85,22 +88,28 @@ public class StreamerAgent implements Runnable{
             } catch (IOException e) {
                 logger.info("Failed bind to :{}",streamAddress);
                 //e.printStackTrace();
-            } finally {
-                socket.close();
             }
         }
     }
 
 
-    public class StreamServerListenerIMPL implements StreamServerListener {
+    public class StreamerListenerIMPL implements StreamerListener {
         @Override
         public void onClientConnectedIn() {
+            //уведомление клента об успешном соединении
+            byte[] buf = "connect".getBytes();
+            DatagramPacket packet = new DatagramPacket(buf, buf.length,userAddress);
+            try {
+                socket.send(packet);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             //нужно запустить стрим, когда создалось соединение
             Runnable imageGrabTask = new ImageGrabTask();
             ScheduledFuture<?> imageGrabFuture =
                     timeWorker.scheduleWithFixedDelay(imageGrabTask,
                             0,
-                            1000/FPS,
+                            10000/FPS, //1000/FPS,
                             TimeUnit.MILLISECONDS);
             imageGrabTaskFuture = imageGrabFuture;
             logger.info("connection opened");
@@ -121,21 +130,30 @@ public class StreamerAgent implements Runnable{
         @Override
         public void run() {
             logger.info("image grabed ,count :{}",frameCount++);
-            //BufferedImage bufferedImage = webcam.getImage();
-            String message = "send";
-            sendWorker.execute(new SendTask(message));
+            BufferedImage bufferedImage = webcam.getImage();
+            //String message = "send";
+            sendWorker.execute(new SendTask(bufferedImage));
         }
     }
 
     private class SendTask implements Runnable{
-        String msg;
-        SendTask(String msg){
+        BufferedImage msg;
+        SendTask(BufferedImage msg){
             this.msg = msg;
         }
 
         public void run(){
             logger.info("msg sended");
-            byte[] buf = msg.getBytes();
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            byte[] buf = new byte[10];
+            try {
+                ImageIO.write(msg, "png", baos);
+                baos.flush();
+                buf = baos.toByteArray();
+                baos.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
             DatagramPacket packet = new DatagramPacket(buf, buf.length,userAddress);
             try {
                 socket.send(packet);

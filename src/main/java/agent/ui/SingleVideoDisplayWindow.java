@@ -3,6 +3,7 @@ package agent.ui;
 import com.github.sarxos.webcam.Webcam;
 import com.github.sarxos.webcam.WebcamPanel;
 import com.github.sarxos.webcam.WebcamResolution;
+import handler.SingleVideoDisplayListener;
 
 import javax.swing.*;
 import java.awt.*;
@@ -12,34 +13,67 @@ import java.awt.image.BufferedImage;
  * Created by G0DZ on 28.04.2016.
  */
 public class SingleVideoDisplayWindow {
-    protected final VideoPanel videoPannel;
+    protected final VideoPanel videoPanel;
     protected final JFrame window;
     protected final WebcamPanel webcamPanel;
+    protected final JButton button;
+    protected final JTextField ipTextField;
+    protected final JTextField portTextField;
 
     public SingleVideoDisplayWindow(String name,Dimension dimension, Webcam webcam) {
         super();
-        this.window = new JFrame(name);
-        this.videoPannel = new VideoPanel(dimension);
-        this.videoPannel.setPreferredSize(dimension);
+        try { //стиль оформления
+            UIManager.setLookAndFeel(
+                    UIManager.getSystemLookAndFeelClassName());
+        } catch (ClassNotFoundException | InstantiationException
+                | IllegalAccessException | UnsupportedLookAndFeelException e) {
+            e.printStackTrace();
+        }
+        window = new JFrame(name);
+        window.setPreferredSize(new Dimension(dimension.width,dimension.height+50));
+        window.setLayout(new BorderLayout());
+        videoPanel = new VideoPanel(dimension);
+        //this.videoPanel.setPreferredSize(dimension);
+        videoPanel.setBounds(0,0,dimension.width,dimension.height);
+        videoPanel.setOpaque(true);
         //получаем вэбкамеру
         //настраиваем панель
-        this.webcamPanel = new WebcamPanel(webcam);
+        webcamPanel = new WebcamPanel(webcam);
         //panel.setFPSDisplayed(true);
         //panel.setDisplayDebugInfo(true);
         //panel.setImageSizeDisplayed(true);
         webcamPanel.setMirrored(true);
-        int hWebPanel = (int)(dimension.height/4.0);
-        int wWebPanel = (int)(dimension.width/4.0);
-        webcamPanel.setSize(wWebPanel,hWebPanel);
-        webcamPanel.setBounds(0,dimension.height-hWebPanel,wWebPanel,hWebPanel);
+        Dimension dimWebPanel = new Dimension(160,120);//WebcamResolution.QVGA.getSize();
+        webcamPanel.setBounds(0,
+                dimension.height-dimWebPanel.height,
+                dimWebPanel.width,
+                dimWebPanel.height);
+        webcamPanel.setOpaque(true);
         //отображение
         JLayeredPane lpane = new JLayeredPane();
-        this.window.setLayout(new BorderLayout());
         this.window.add(lpane, BorderLayout.CENTER);
-        lpane.setBounds(new Rectangle(new Point(0,0),dimension));
-        //lpane.add(videoPannel,new Integer(0), 0);
+        lpane.setBounds(0,0,dimension.width,dimension.height);
         lpane.add(webcamPanel,new Integer(1), 0);
-        this.window.add(videoPannel);
+        lpane.add(videoPanel,new Integer(0), 0);
+
+        //поле ввода IP
+        ipTextField = new JTextField("127.0.0.1",10);
+        //ipTextField.setSize(50,50);
+        //поле ввода порта
+        portTextField = new JTextField("9876",5);
+        portTextField.setSize(50,50);
+        //кнопка
+        button = new JButton("connect");
+        button.setSize(dimension.width-50,50);
+        button.addActionListener(new SingleVideoDisplayListener(this));
+        //объединяем
+        JPanel p1 = new JPanel();
+        p1.setLayout(new FlowLayout());
+        p1.add(ipTextField);
+        p1.add(portTextField);
+        p1.add(button);
+
+        this.window.add(p1,BorderLayout.SOUTH);
         this.window.pack();
         this.window.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
@@ -50,12 +84,24 @@ public class SingleVideoDisplayWindow {
     }
 
     public void updateImage(BufferedImage image) {
-        videoPannel.updateImage(image);
+        videoPanel.updateImage(image);
     }
 
     public void close(){
         window.dispose();
-        videoPannel.close();
+        videoPanel.close();
+    }
+
+    public String getPort() {
+        return portTextField.getText();
+    }
+
+    public String getIP() {
+        return ipTextField.getText();
+    }
+
+    public JFrame getWindow() {
+        return window;
     }
 }
 
